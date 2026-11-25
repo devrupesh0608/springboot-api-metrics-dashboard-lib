@@ -1,0 +1,36 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: api-metric-sample
+
+api-metric:
+  enabled: true
+  dashboard:
+    enabled: true
+    path: /api-metric-dashboard
+  internal-path: /api-metric/internal
+  storage:
+    mysql:
+      url: jdbc:mysql://localhost:3306/api-metrics?characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      username: root
+      password:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout-ms: 3000
+  capture:
+    request-payload: true
+    response-payload: true
+    capture-headers: true
+    max-payload-size: 10240
+    excluded-paths:
+      - /actuator/**
+  security:
+    enabled: true
+    allow-unauthenticated: true
+  analytics:
+    unused-api-threshold-days: 30
+  retention:
+    request-logs-days: 30

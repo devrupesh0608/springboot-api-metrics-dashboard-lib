@@ -1,0 +1,15 @@
+target/
+build/
+.gradle/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+.node/
+node_modules/
+dist/
+.DS_Store
+*.log
+.tmp/

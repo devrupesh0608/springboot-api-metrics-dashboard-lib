@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>API Metrics Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      color: #1e2433;
+      background: #f3f5fb;
+      display: flex;
+      min-width: 1100px;
+    }
+    .sidebar {
+      width: 228px;
+      flex: none;
+      color: #fff;
+      background: linear-gradient(180deg, #07133a 0%, #1a1464 55%, #2a1b86 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 22px 16px 18px;
+      transition: width 0.2s ease;
+    }
+    .sidebar-toggle {
+      margin-left: auto; width: 32px; height: 32px; border: 0; border-radius: 8px;
+      background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; display: grid; place-items: center;
+    }
+    .sidebar-toggle svg { transition: transform 0.2s ease; }
+    body.sidebar-collapsed .sidebar { width: 76px; padding-left: 12px; padding-right: 12px; }
+    body.sidebar-collapsed .brand-text,
+    body.sidebar-collapsed .nav-label,
+    body.sidebar-collapsed .powered-text { display: none; }
+    body.sidebar-collapsed .brand { flex-direction: column; justify-content: center; align-items: center; padding-left: 0; padding-right: 0; }
+    body.sidebar-collapsed .sidebar-toggle { order: -1; margin: 0 0 12px; }
+    body.sidebar-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+    body.sidebar-collapsed .nav button { justify-content: center; padding: 12px; }
+    body.sidebar-collapsed .powered { justify-content: center; }
+    .brand { display: flex; gap: 12px; align-items: center; padding: 0 8px 26px; }
+    .brand strong { display: block; font-size: 0.98rem; line-height: 1.25; letter-spacing: -0.02em; }
+    .brand span { display: block; color: #c9d2ef; font-size: 0.75rem; margin-top: 2px; }
+    .nav { display: flex; flex-direction: column; gap: 6px; }
+    .nav button {
+      display: flex; align-items: center; gap: 12px;
+      width: 100%; border: 0; background: transparent; color: #d7def3;
+      border-radius: 12px; padding: 12px 14px; font: inherit; font-weight: 600;
+      cursor: pointer; text-align: left;
+    }
+    .nav button.active { background: #2f6bff; color: #fff; }
+    .nav button svg { flex: none; }
+    .powered {
+      margin-top: auto;
+      background: rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 0.82rem;
+    }
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 18px 22px 22px; }
+    .topbar { display: flex; justify-content: flex-end; align-items: center; gap: 14px; margin-bottom: 14px; color: #667085; font-size: 0.92rem; }
+    .live { display: inline-flex; align-items: center; gap: 8px; background: #16a34a; color: #fff; border-radius: 999px; padding: 6px 12px; font-weight: 700; }
+    .live i { width: 8px; height: 8px; border-radius: 50%; background: #fff; display: block; }
+    .icon-btn { width: 36px; height: 36px; border-radius: 50%; border: 0; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,0.08); cursor: pointer; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { background: #fff; border-radius: 18px; padding: 18px 18px 14px; display: flex; justify-content: space-between; gap: 12px; box-shadow: 0 8px 24px rgba(31, 41, 82, 0.05); }
+    .card .label { color: #667085; font-weight: 600; }
+    .card .value { font-size: 2rem; font-weight: 750; margin-top: 6px; letter-spacing: -0.03em; }
+    .card-title { display: flex; gap: 12px; align-items: flex-start; }
+    .badge-icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; }
+    .badge-icon.blue { background: #e8eeff; color: #3554f5; }
+    .badge-icon.green { background: #e7f8ee; color: #16a34a; }
+    .badge-icon.purple { background: #f3e8ff; color: #7c3aed; }
+    .spark { width: 118px; height: 52px; }
+    .workspace { margin-top: 16px; display: grid; grid-template-columns: minmax(420px, 0.92fr) 1.15fr; gap: 16px; min-height: 0; flex: 1; }
+    .panel { background: #fff; border-radius: 18px; box-shadow: 0 8px 24px rgba(31, 41, 82, 0.05); min-height: 520px; display: flex; flex-direction: column; overflow: hidden; }
+    .panel.compact { min-height: 0; }
+    .dash-grid { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .dash-grid .panel.compact { margin-top: 0; }
+    .pager { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 12px 16px 16px; color: #667085; }
+    .pager button { border: 1px solid #e4e7ec; background: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; font-weight: 650; cursor: pointer; }
+    .pager button:disabled { opacity: 0.45; cursor: default; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 18px 8px; }
+    .panel-head h2 { margin: 0; font-size: 1.15rem; }
+    .text-btn { border: 0; background: transparent; color: #2f6bff; font: inherit; font-weight: 650; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chips button { border: 0; background: #f2f4f7; border-radius: 999px; padding: 6px 12px; font: inherit; font-weight: 650; cursor: pointer; color: #475467; }
+    .chips button.active { background: #e8eeff; color: #2f6bff; }
+    .endpoint-page { display: flex; flex-direction: column; gap: 16px; }
+    .endpoint-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .endpoint-head h2 { margin: 0; font-size: 1.6rem; }
+    .endpoint-head p { margin: 4px 0 0; color: #667085; }
+    .ranges { display: flex; gap: 4px; align-items: center; background: #fff; border-radius: 999px; padding: 6px; box-shadow: 0 8px 24px rgba(31, 41, 82, 0.05); }
+    .ranges button { border: 0; background: transparent; border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 700; color: #475467; cursor: pointer; }
+    .ranges button.active { background: #2f6bff; color: #fff; }
+    .custom-range { display: flex; gap: 8px; align-items: center; margin-top: 8px; justify-content: flex-end; }
+    .custom-range input { border: 1px solid #e4e7ec; border-radius: 8px; padding: 6px 8px; font: inherit; }
+    .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .stat { border-radius: 16px; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .stat.blue { background: #eef4ff; }
+    .stat.purple { background: #f4efff; }
+    .stat.green { background: #eefbf3; }
+    .stat.amber { background: #fff6eb; }
+    .stat .label { color: #667085; font-weight: 650; }
+    .stat .value { font-size: 1.7rem; font-weight: 750; }
+    .stat .spark { width: 84px; height: 40px; }
+    .delta { margin-left: 8px; font-size: 0.85rem; font-weight: 750; color: #16a34a; }
+    .delta.down { color: #e11d48; }
+    .request-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 0 16px 8px; }
+    .request-filters select, .request-filters input { border: 1px solid #e4e7ec; border-radius: 10px; padding: 8px 10px; font: inherit; background: #fff; color: #1e2433; }
+    .search { flex: 1; border: 1px solid #e4e7ec; border-radius: 12px; padding: 12px 14px; font: inherit; }
+    .export { border: 1px solid #e4e7ec; background: #fff; border-radius: 12px; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; }
+    .method-pill { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 0.78rem; font-weight: 800; }
+    .method-pill.GET { background: #efe8ff; color: #7c3aed; }
+    .method-pill.POST { background: #e7f8ee; color: #16a34a; }
+    .method-pill.PUT { background: #e8f1ff; color: #2563eb; }
+    .method-pill.DELETE { background: #ffe8ee; color: #e11d48; }
+    .method-pill.PATCH { background: #fff4e5; color: #d97706; }
+    .share { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+    .share-bar { flex: 1; height: 6px; background: #e8edf3; border-radius: 999px; overflow: hidden; }
+    .share-bar span { display: block; height: 100%; background: #2f6bff; }
+    .endpoint-name { font-weight: 750; }
+    .when-date { font-weight: 650; }
+    .when-time { color: #667085; font-size: 0.82rem; margin-top: 2px; }
+    .panel.flat { min-height: 0; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { text-align: left; color: #98a2b3; font-weight: 650; font-size: 0.82rem; padding: 8px 12px; }
+    td { padding: 13px 12px; border-top: 1px solid #f2f4f7; font-size: 0.92rem; white-space: nowrap; }
+    #recent-rows td:nth-child(1), #rows td:nth-child(1), #unhit-apis td:nth-child(1) { width: 78px; }
+    #recent-rows td:nth-child(3), #rows td:nth-child(3) { width: 72px; }
+    #recent-rows td:nth-child(4), #rows td:nth-child(4) { width: 132px; }
+    #rows td:nth-child(5) { width: 84px; }
+    #endpoints td:nth-child(1) { width: 92px; }
+    #endpoints td:nth-child(3), #endpoints td:nth-child(4) { width: 140px; }
+    #endpoints td:nth-child(5) { width: 148px; }
+    td.path { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+    tbody tr { cursor: pointer; }
+    tbody tr.selected { background: #f5f8ff; box-shadow: inset 3px 0 0 #2f6bff; }
+    .method { font-weight: 750; }
+    .status-pill { font-weight: 750; }
+    .tone-200 { color: #16a34a; }
+    .tone-201 { color: #7c3aed; }
+    .tone-err { color: #e11d48; }
+    .tone-other { color: #0f766e; }
+    .detail { padding: 18px 20px 24px; overflow: auto; }
+    .detail-top { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+    .endpoint { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .verb { color: #fff; background: #16a34a; border-radius: 8px; padding: 4px 8px; font-size: 0.78rem; font-weight: 800; }
+    .verb.err { background: #e11d48; }
+    .verb.created { background: #7c3aed; }
+    .endpoint h2 { margin: 0; font-size: 1.35rem; letter-spacing: -0.03em; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+    .when { color: #667085; display: flex; gap: 16px; font-size: 0.92rem; white-space: nowrap; }
+    .tabs { display: flex; gap: 22px; border-bottom: 1px solid #eaecf0; margin: 16px 0 12px; }
+    .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 0; color: #667085; font: inherit; font-weight: 650; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+    .tabs button.active { color: #2f6bff; border-bottom-color: #2f6bff; }
+    .codebox { position: relative; background: #f4f7ff; border-radius: 14px; display: grid; grid-template-columns: 36px 1fr; padding: 14px 12px 16px; overflow: auto; }
+    .gutter { color: #98a2b3; text-align: right; padding-right: 10px; line-height: 1.55; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86rem; }
+    .code { margin: 0; line-height: 1.55; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; white-space: pre; }
+    .key { color: #7c3aed; }
+    .str { color: #e11d48; }
+    .copy { position: absolute; top: 10px; right: 10px; border: 1px solid #e4e7ec; background: #fff; border-radius: 8px; padding: 4px 8px; font: inherit; font-size: 0.8rem; cursor: pointer; color: #475467; }
+    .response-head { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+    .code-status { color: #fff; background: #16a34a; border-radius: 8px; padding: 4px 8px; font-weight: 800; }
+    .code-status.err { background: #e11d48; }
+    .code-status.created { background: #7c3aed; }
+    .response-head h3 { margin: 0; font-size: 1.2rem; }
+    .empty, .plain { color: #667085; padding: 8px 0 16px; }
+    .view[hidden] { display: none; }
+    .subtable { width: 100%; background: #fff; border-radius: 18px; overflow: hidden; }
+    .about { background: #fff; border-radius: 18px; padding: 28px; max-width: 720px; line-height: 1.6; }
+    .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="42" height="42" viewBox="0 0 42 42" aria-hidden="true"><path fill="#2f6bff" d="M21 2 38 12v18L21 40 4 30V12Z"/><path fill="#fff" d="M13 26V18h4v8h-4Zm6 0V14h4v12h-4Zm6 0v-6h4v6h-4Z"/></svg>
+      <div class="brand-text"><strong>API Metrics Dashboard</strong></div>
+      <button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Collapse sidebar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6 9 12l6 6"/></svg></button>
+    </div>
+    <nav class="nav">
+      <button class="active" type="button" data-view="dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1Z"/></svg><span class="nav-label">Dashboard</span></button>
+      <button type="button" data-view="requests"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span class="nav-label">All Requests</span></button>
+      <button type="button" data-view="endpoints"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 8 4 12l4 4M16 8l4 4-4 4M13 6l-2 12"/></svg><span class="nav-label">API Endpoints</span></button>
+    </nav>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <span class="live"><i></i> Live</span>
+      <span id="updated">Last Updated: --</span>
+      <button class="icon-btn" id="refresh-top" type="button" aria-label="Refresh">↻</button>
+    </header>
+    <section class="view" id="view-dashboard">
+      <div class="cards">
+        <article class="card"><div class="card-title"><div class="badge-icon blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16"/><path d="M8 16v-3M12 16V8M16 16v-5"/></svg></div><div><div class="label">Total API Hits</div><div class="value" id="hits">0</div></div></div><div id="spark-hits"></div></article>
+        <article class="card"><div class="card-title"><div class="badge-icon green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg></div><div><div class="label">Total API Discovered</div><div class="value" id="discovered">0</div></div></div><div id="spark-discovered"></div></article>
+        <article class="card"><div class="card-title"><div class="badge-icon purple"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z"/></svg></div><div><div class="label">Total Unhit APIs</div><div class="value" id="unhit">0</div></div></div><div id="spark-unhit"></div></article>
+      </div>
+      <div class="dash-grid">
+      <section class="panel compact">
+        <div class="panel-head"><h2>Recent API Calls</h2><button class="text-btn" id="view-all-requests" type="button">View all</button></div>
+        <table>
+          <thead><tr><th>Method</th><th>Endpoint</th><th>Status</th><th>Date &amp; Time</th></tr></thead>
+          <tbody id="recent-rows"></tbody>
+        </table>
+        <p class="empty" id="recent-empty" hidden>No requests yet.</p>
+      </section>
+      <section class="panel compact">
+        <div class="panel-head"><h2>Never Used APIs</h2><button class="text-btn" id="view-all-unused" type="button">View all</button></div>
+        <table>
+          <thead><tr><th>Method</th><th>Endpoint</th></tr></thead>
+          <tbody id="unhit-apis"></tbody>
+        </table>
+        <p class="empty" id="unhit-empty" hidden>Every discovered API has been called.</p>
+      </section>
+      </div>
+    </section>
+    <section class="view" id="view-requests" hidden>
+      <div class="workspace">
+        <section class="panel">
+          <div class="panel-head"><h2>All Requests</h2><button class="text-btn" id="refresh" type="button">↻ Refresh</button></div>
+          <div class="toolbar" style="padding: 0 16px 8px;">
+            <input id="request-search" class="search" type="search" placeholder="Search path"/>
+          </div>
+          <div class="request-filters">
+            <select id="request-method" aria-label="Filter by method">
+              <option value="">All methods</option>
+              <option>GET</option>
+              <option>POST</option>
+              <option>PUT</option>
+              <option>PATCH</option>
+              <option>DELETE</option>
+            </select>
+            <select id="request-status" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="2xx">2xx</option>
+              <option value="3xx">3xx</option>
+              <option value="4xx">4xx</option>
+              <option value="5xx">5xx</option>
+            </select>
+            <input id="request-from" type="datetime-local" aria-label="From"/>
+            <input id="request-to" type="datetime-local" aria-label="To"/>
+            <button class="text-btn" id="request-clear" type="button">Clear</button>
+          </div>
+          <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Status</th><th>Date &amp; Time</th><th>Duration</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <p class="empty" id="rows-empty" hidden>No requests match this search.</p>
+          <div class="pager" id="requests-pager"></div>
+        </section>
+        <section class="panel detail" id="detail"></section>
+      </div>
+    </section>
+    <section class="view" id="view-endpoints" hidden>
+      <div class="endpoint-page">
+        <div class="endpoint-head">
+          <div>
+            <h2>API Endpoints</h2>
+            <p>Endpoint-wise API usage and activity overview</p>
+          </div>
+          <div>
+            <div class="ranges" id="ranges">
+              <button type="button" data-range="1h">1h</button>
+              <button type="button" data-range="6h">6h</button>
+              <button type="button" data-range="24h" class="active">24h</button>
+              <button type="button" data-range="7d">7d</button>
+              <button type="button" data-range="30d">30d</button>
+              <button type="button" data-range="custom">Custom Range</button>
+            </div>
+            <div class="custom-range" id="custom-range" hidden>
+              <input id="range-from" type="datetime-local"/>
+              <input id="range-to" type="datetime-local"/>
+              <button class="text-btn" id="range-apply" type="button">Apply</button>
+            </div>
+          </div>
+        </div>
+        <div class="stat-cards" id="endpoint-stats"></div>
+        <section class="panel flat">
+          <div class="toolbar" style="padding: 16px 16px 0;">
+            <input id="endpoint-search" class="search" type="search" placeholder="Search endpoints..."/>
+            <button class="export" id="endpoint-export" type="button">Export</button>
+          </div>
+          <div class="chips" id="endpoint-filters" style="padding: 12px 16px 0;"></div>
+          <table>
+            <thead><tr><th>Method</th><th>Endpoint</th><th>Total Hits</th><th>Avg Response Time</th><th>Last Hit</th></tr></thead>
+            <tbody id="endpoints"></tbody>
+          </table>
+          <p class="empty" id="endpoints-empty" hidden>No endpoints match these filters.</p>
+          <div class="pager" id="endpoints-pager"></div>
+        </section>
+      </div>
+    </section>
+  </div>
+  <script>
+    const internal = "{{internal}}";
+    let items = [];
+    let recentItems = [];
+    let requestTotal = 0;
+    let requestPage = 0;
+    const requestPageSize = 8;
+    let requestQuery = "";
+    let requestMethod = "";
+    let requestStatus = "";
+    let requestFrom = "";
+    let requestTo = "";
+    let endpointPage = 0;
+    const endpointPageSize = 8;
+    let allApis = [];
+    let endpointFilter = "all";
+    let endpointRange = "24h";
+    let customFrom = "";
+    let customTo = "";
+    let endpointStats = {};
+    let rangeSeries = [];
+    let rangeHits = 0;
+    let previousRangeHits = 0;
+    let peakRps = 0;
+    let selectedId = null;
+    let shownId = null;
+    let current = null;
+    let requestTab = "request";
+    let responseTab = "summary";
+    let traffic = { hits: [], discovered: [], unhit: [] };
+
+    function tone(status) {
+      if (status === 201) return "tone-201";
+      if (status === 200) return "tone-200";
+      if (status >= 400) return "tone-err";
+      return "tone-other";
+    }
+    function verbClass(status) {
+      if (status === 201) return "created";
+      if (status >= 400) return "err";
+      return "";
+    }
+    function formatDuration(ms) {
+      if (ms >= 1000) return (ms / 1000).toFixed(2).replace(/\.00$/, "") + "s";
+      return ms + "ms";
+    }
+    function stampParts(iso) {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric",
+        hour: "numeric", minute: "2-digit", hour12: true
+      }).formatToParts(new Date(iso));
+      const get = type => parts.find(part => part.type === type).value;
+      return {
+        date: Number(get("day")) + " " + get("month") + " " + get("year") + ",",
+        time: get("hour") + ":" + get("minute") + " " + get("dayPeriod").toUpperCase() + " IST"
+      };
+    }
+    function stamp(iso) {
+      const parts = stampParts(iso);
+      return parts.date + " " + parts.time;
+    }
+    function whenCell(iso) {
+      const td = document.createElement("td");
+      if (!iso) {
+        td.textContent = "never";
+        return td;
+      }
+      const parts = stampParts(iso);
+      const date = document.createElement("div");
+      date.className = "when-date";
+      date.textContent = parts.date;
+      const time = document.createElement("div");
+      time.className = "when-time";
+      time.textContent = parts.time;
+      td.append(date, time);
+      return td;
+    }
+    function pretty(text) {
+      if (!text) return "";
+      try { return JSON.stringify(JSON.parse(text), null, 2); } catch (error) { return text; }
+    }
+    function bodySource(payload, mode) {
+      if (!payload || payload.body == null || payload.body === "") {
+        const status = payload && payload.status ? payload.status : "NOT_CAPTURED";
+        return status === "CAPTURED" || status === "TRUNCATED" ? "" : "No body was captured (" + status + ").";
+      }
+      return mode === "raw" ? payload.body : pretty(payload.body);
+    }
+    function sparkline(values, color) {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 120 48");
+      svg.setAttribute("class", "spark");
+      const nums = values && values.length > 1 ? values : [2, 3, 2.4, 4, 3.2, 5, 4.2, 6];
+      const max = Math.max.apply(null, nums);
+      const min = Math.min.apply(null, nums);
+      const span = Math.max(max - min, 0.001);
+      const step = 108 / (nums.length - 1);
+      const points = nums.map((value, index) => (6 + index * step) + "," + (40 - ((value - min) / span) * 30)).join(" ");
+      const line = document.createElementNS(svg.namespaceURI, "polyline");
+      line.setAttribute("points", points);
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", color);
+      line.setAttribute("stroke-width", "2.4");
+      line.setAttribute("stroke-linecap", "round");
+      line.setAttribute("stroke-linejoin", "round");
+      svg.append(line);
+      return svg;
+    }
+    function paint(parent, text) {
+      parent.replaceChildren();
+      text.split("\n").forEach(line => {
+        const row = document.createElement("div");
+        const key = /^(\s*)("(?:\\.|[^"\\])*")(\s*:)([\s\S]*)$/.exec(line);
+        if (key) {
+          row.append(document.createTextNode(key[1]));
+          const name = document.createElement("span");
+          name.className = "key";
+          name.textContent = key[2];
+          row.append(name, document.createTextNode(key[3]));
+          paintValue(row, key[4]);
+        } else {
+          paintValue(row, line);
+        }
+        parent.append(row);
+      });
+    }
+    function paintValue(row, part) {
+      const stringValue = /^(\s*)("(?:\\.|[^"\\])*")([\s\S]*)$/.exec(part);
+      if (stringValue) {
+        row.append(document.createTextNode(stringValue[1]));
+        const value = document.createElement("span");
+        value.className = "str";
+        value.textContent = stringValue[2];
+        row.append(value, document.createTextNode(stringValue[3]));
+        return;
+      }
+      row.append(document.createTextNode(part));
+    }
+    function codeBox(text) {
+      const box = document.createElement("div");
+      box.className = "codebox";
+      const gutter = document.createElement("div");
+      gutter.className = "gutter";
+      const lines = text === "" ? [""] : text.split("\n");
+      lines.forEach((_, index) => {
+        const number = document.createElement("div");
+        number.textContent = String(index + 1);
+        gutter.append(number);
+      });
+      const code = document.createElement("pre");
+      code.className = "code";
+      paint(code, text);
+      const copy = document.createElement("button");
+      copy.className = "copy";
+      copy.type = "button";
+      copy.textContent = "Copy";
+      copy.addEventListener("click", () => navigator.clipboard.writeText(text).then(() => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy"; }, 1200); }));
+      box.append(gutter, code, copy);
+      return box;
+    }
+    function tabs(names, active, onSelect) {
+      const bar = document.createElement("div");
+      bar.className = "tabs";
+      names.forEach(name => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+        if (name === active) button.className = "active";
+        button.addEventListener("click", () => onSelect(name));
+        bar.append(button);
+      });
+      return bar;
+    }
+    function renderDetail() {
+      const root = document.querySelector("#detail");
+      root.replaceChildren();
+      if (!current) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = "Select a request.";
+        root.append(empty);
+        return;
+      }
+      const top = document.createElement("div");
+      top.className = "detail-top";
+      const endpoint = document.createElement("div");
+      endpoint.className = "endpoint";
+      const verb = document.createElement("span");
+      verb.className = "verb " + verbClass(current.httpStatus);
+      verb.textContent = current.identity.httpMethod;
+      const title = document.createElement("h2");
+      title.className = "path";
+      title.textContent = current.identity.pathPattern;
+      endpoint.append(verb, title);
+      const when = document.createElement("div");
+      when.className = "when";
+      when.textContent = stamp(current.createdAt) + "    " + formatDuration(current.durationMillis);
+      top.append(endpoint, when);
+      const requestTabs = tabs(["request", "headers", "raw"], requestTab, name => { requestTab = name; renderDetail(); });
+      const requestText = requestTab === "headers"
+        ? (current.requestHeaders ? pretty(current.requestHeaders) : "Headers were not captured.")
+        : bodySource(current.requestPayload, requestTab === "raw" ? "raw" : "summary");
+      const responseHead = document.createElement("div");
+      responseHead.className = "response-head";
+      const status = document.createElement("span");
+      status.className = "code-status " + verbClass(current.httpStatus);
+      status.textContent = String(current.httpStatus);
+      const responseTitle = document.createElement("h3");
+      responseTitle.textContent = "Response";
+      responseHead.append(status, responseTitle);
+      const responseTabs = tabs(["summary", "headers", "raw"], responseTab, name => { responseTab = name; renderDetail(); });
+      const responseText = responseTab === "headers"
+        ? (current.responseHeaders ? pretty(current.responseHeaders) : "Headers were not captured.")
+        : bodySource(current.responsePayload, responseTab);
+      root.append(top, requestTabs, codeBox(requestText), responseHead, responseTabs, codeBox(responseText));
+    }
+    function renderRows() {
+      fillRequestTable(document.querySelector("#rows"), items, item => select(item.id), true);
+      document.querySelector("#rows-empty").hidden = items.length > 0;
+      renderPager("#requests-pager", requestPage, requestPageSize, requestTotal, page => {
+        requestPage = page;
+        loadRequestPage().catch(showError);
+      });
+    }
+    function renderRecent() {
+      const recent = recentItems.slice(0, 5);
+      fillRequestTable(document.querySelector("#recent-rows"), recent, item => openRequest(item.id), false, false);
+      document.querySelector("#recent-empty").hidden = recent.length > 0;
+    }
+    function fillRequestTable(rows, source, onClick, markSelected, includeDuration) {
+      rows.replaceChildren();
+      for (const item of source) {
+        const tr = document.createElement("tr");
+        if (markSelected && item.id === selectedId) tr.className = "selected";
+        const method = document.createElement("td");
+        method.className = "method " + tone(item.httpStatus);
+        method.textContent = item.identity.httpMethod;
+        const path = document.createElement("td");
+        path.className = "path";
+        path.textContent = item.identity.pathPattern;
+        const status = document.createElement("td");
+        status.className = "status-pill " + tone(item.httpStatus);
+        status.textContent = String(item.httpStatus);
+        const time = whenCell(item.createdAt);
+        tr.append(method, path, status, time);
+        if (includeDuration !== false) {
+          const duration = document.createElement("td");
+          duration.textContent = formatDuration(item.durationMillis) + "  ›";
+          tr.append(duration);
+        }
+        tr.addEventListener("click", () => onClick(item));
+        rows.append(tr);
+      }
+    }
+    function renderSparks() {
+      document.querySelector("#spark-hits").replaceChildren(sparkline(traffic.hits, "#3b82f6"));
+      document.querySelector("#spark-discovered").replaceChildren(sparkline(traffic.discovered, "#22c55e"));
+      document.querySelector("#spark-unhit").replaceChildren(sparkline(traffic.unhit, "#a855f7"));
+    }
+    async function show(id) {
+      const response = await fetch(internal + "/requests/" + id);
+      if (!response.ok) throw new Error("Could not load request " + id);
+      current = await response.json();
+      shownId = id;
+      renderDetail();
+    }
+    async function select(id) {
+      selectedId = id;
+      renderRows();
+      await show(id);
+    }
+    async function openRequest(id) {
+      showView("requests");
+      await select(id);
+    }
+    function showView(name) {
+      document.querySelectorAll(".nav button").forEach(item => item.classList.toggle("active", item.dataset.view === name));
+      document.querySelectorAll(".view").forEach(view => { view.hidden = view.id !== "view-" + name; });
+      if (name === "requests") loadRequestPage().catch(showError);
+      if (name === "endpoints") loadEndpointStats().then(renderEndpoints).catch(showError);
+    }
+    function neverUsed(api) {
+      return api.totalHits === 0 && !api.lastAccessedAt;
+    }
+    function renderUnhit() {
+      const unused = allApis.filter(neverUsed).slice(0, 5);
+      const unhitRows = document.querySelector("#unhit-apis");
+      unhitRows.replaceChildren();
+      document.querySelector("#unhit-empty").hidden = unused.length > 0;
+      unused.forEach(api => {
+        const tr = document.createElement("tr");
+        const method = cell(api.identity.httpMethod);
+        method.className = "method tone-201";
+        const path = cell(api.identity.pathPattern);
+        path.className = "path";
+        tr.append(method, path);
+        unhitRows.append(tr);
+      });
+    }
+    function renderEndpoints() {
+      const filters = document.querySelector("#endpoint-filters");
+      const order = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+      const methods = Array.from(new Set(allApis.map(api => api.identity.httpMethod))).sort((left, right) => order.indexOf(left) - order.indexOf(right));
+      const options = ["all", "never"].concat(methods);
+      filters.replaceChildren();
+      options.forEach(option => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = option === "all" ? "All" : option === "never" ? "Never used" : option;
+        if (option === endpointFilter) button.className = "active";
+        button.addEventListener("click", () => { endpointFilter = option; endpointPage = 0; renderEndpoints(); });
+        filters.append(button);
+      });
+      const visible = visibleApis();
+      const active = allApis.filter(api => statFor(api).hits > 0).length;
+      const change = previousRangeHits === 0 ? (rangeHits > 0 ? "new" : null) : ((rangeHits - previousRangeHits) / previousRangeHits) * 100;
+      const stats = document.querySelector("#endpoint-stats");
+      stats.replaceChildren();
+      stats.append(
+        statCard("blue", "Total API Hits", formatNumber(rangeHits), change, rangeSeries, "#3b82f6"),
+        statCard("purple", "Total Endpoints", formatNumber(allApis.length), null, rangeSeries, "#a855f7"),
+        statCard("green", "Active Endpoints", formatNumber(active), null, rangeSeries, "#22c55e"),
+        statCard("amber", "Peak RPS", formatRate(peakRps), null, rangeSeries, "#f59e0b"));
+      const endpoints = document.querySelector("#endpoints");
+      endpoints.replaceChildren();
+      document.querySelector("#endpoints-empty").hidden = visible.length > 0;
+      const pages = Math.max(1, Math.ceil(visible.length / endpointPageSize));
+      if (endpointPage > pages - 1) endpointPage = pages - 1;
+      visible.slice(endpointPage * endpointPageSize, (endpointPage + 1) * endpointPageSize).forEach(api => {
+        const info = statFor(api);
+        const tr = document.createElement("tr");
+        const endpoint = cell(api.identity.pathPattern);
+        endpoint.className = "endpoint-name path";
+        const method = document.createElement("td");
+        const pill = document.createElement("span");
+        pill.className = "method-pill " + api.identity.httpMethod;
+        pill.textContent = api.identity.httpMethod;
+        method.append(pill);
+        const hits = cell(formatNumber(info.hits));
+        const average = cell(info.hits === 0 ? "—" : Math.round(info.duration / info.hits) + " ms");
+        const last = whenCell(api.lastAccessedAt);
+        tr.append(method, endpoint, hits, average, last);
+        endpoints.append(tr);
+      });
+      renderPager("#endpoints-pager", endpointPage, endpointPageSize, visible.length, page => {
+        endpointPage = page;
+        renderEndpoints();
+      });
+    }
+    function visibleApis() {
+      const query = (document.querySelector("#endpoint-search").value || "").trim().toLowerCase();
+      return allApis.filter(api => {
+        if (endpointFilter === "never" && !neverUsed(api)) return false;
+        if (endpointFilter !== "all" && endpointFilter !== "never" && api.identity.httpMethod !== endpointFilter) return false;
+        if (!query) return true;
+        return (api.identity.pathPattern + " " + api.handlerMethod + " " + api.controllerName).toLowerCase().includes(query);
+      });
+    }
+    function statFor(api) {
+      return endpointStats[api.id] || { hits: 0, duration: 0, points: [] };
+    }
+    function statCard(toneName, label, value, change, series, color) {
+      const card = document.createElement("article");
+      card.className = "stat " + toneName;
+      const text = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "label";
+      title.textContent = label;
+      const amount = document.createElement("div");
+      amount.className = "value";
+      amount.textContent = value;
+      if (change === "new") {
+        const delta = document.createElement("span");
+        delta.className = "delta";
+        delta.textContent = " ↑ new";
+        amount.append(delta);
+      } else if (change != null && Number.isFinite(change)) {
+        const delta = document.createElement("span");
+        delta.className = "delta" + (change < 0 ? " down" : "");
+        delta.textContent = (change >= 0 ? " ↑ " : " ↓ ") + Math.abs(change).toFixed(1) + "%";
+        amount.append(delta);
+      }
+      text.append(title, amount);
+      card.append(text, sparkline(series, color));
+      return card;
+    }
+    function formatRate(value) {
+      if (!value) return "0 req/s";
+      if (value < 0.01) return value.toFixed(3) + " req/s";
+      if (value < 10) return value.toFixed(2) + " req/s";
+      return Math.round(value) + " req/s";
+    }
+    function formatNumber(value) {
+      return Number(value || 0).toLocaleString("en-US");
+    }
+    function windowFor(which) {
+      if (endpointRange === "custom" && customFrom && customTo) {
+        const from = new Date(customFrom);
+        const to = new Date(customTo);
+        const span = to.getTime() - from.getTime();
+        return which === "previous"
+          ? { from: new Date(from.getTime() - span), to: from }
+          : { from, to };
+      }
+      const hours = { "1h": 1, "6h": 6, "24h": 24, "7d": 168, "30d": 720 }[endpointRange] || 24;
+      const to = new Date();
+      const from = new Date(to.getTime() - hours * 3600000);
+      return which === "previous"
+        ? { from: new Date(from.getTime() - hours * 3600000), to: from }
+        : { from, to };
+    }
+    async function fetchTraffic(from, to, apiId) {
+      const bucket = to.getTime() - from.getTime() <= 24 * 3600000 ? "MINUTE" : "HOUR";
+      const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), bucket });
+      if (apiId) params.set("apiId", String(apiId));
+      const response = await fetch(internal + "/analytics/traffic?" + params);
+      if (!response.ok) throw new Error("Could not load endpoint traffic");
+      return response.json();
+    }
+    function sumField(series, field) {
+      return (series.points || []).reduce((total, point) => total + (point[field] || 0), 0);
+    }
+    async function loadEndpointStats() {
+      const current = windowFor("current");
+      const previous = windowFor("previous");
+      const results = await Promise.all([
+        fetchTraffic(current.from, current.to),
+        fetchTraffic(previous.from, previous.to),
+        ...allApis.map(api => fetchTraffic(current.from, current.to, api.id))
+      ]);
+      const overall = results[0];
+      rangeSeries = (overall.points || []).map(point => point.totalHits);
+      rangeHits = sumField(overall, "totalHits");
+      previousRangeHits = sumField(results[1], "totalHits");
+      const bucketSeconds = current.to.getTime() - current.from.getTime() <= 24 * 3600000 ? 60 : 3600;
+      peakRps = Math.max(0, ...rangeSeries, 0) / bucketSeconds;
+      endpointStats = {};
+      allApis.forEach((api, index) => {
+        const series = results[index + 2];
+        endpointStats[api.id] = {
+          hits: sumField(series, "totalHits"),
+          duration: sumField(series, "totalDurationMillis"),
+          points: (series.points || []).map(point => point.totalHits)
+        };
+      });
+    }
+    function exportEndpoints() {
+      const rows = visibleApis();
+      const total = allApis.reduce((sum, api) => sum + statFor(api).hits, 0);
+      const lines = ["Endpoint,Method,Total Hits,Share,Avg Response Time,Last Hit"];
+      rows.forEach(api => {
+        const info = statFor(api);
+        const share = total === 0 ? 0 : (info.hits / total) * 100;
+        const average = info.hits === 0 ? "" : String(Math.round(info.duration / info.hits));
+        const last = api.lastAccessedAt ? stamp(api.lastAccessedAt) : "never";
+        lines.push([csv(api.identity.pathPattern), api.identity.httpMethod, info.hits, share.toFixed(1) + "%", average, csv(last)].join(","));
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "api-endpoints.csv";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+    function csv(value) {
+      return '"' + String(value).replaceAll('"', '""') + '"';
+    }
+    function renderPager(selector, page, pageSize, total, onPage) {
+      const bar = document.querySelector(selector);
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      const current = Math.min(page, pages - 1);
+      bar.replaceChildren();
+      const previous = document.createElement("button");
+      previous.type = "button";
+      previous.textContent = "Previous";
+      previous.disabled = current <= 0 || total === 0;
+      previous.addEventListener("click", () => onPage(current - 1));
+      const label = document.createElement("span");
+      const start = total === 0 ? 0 : current * pageSize + 1;
+      const end = Math.min(total, (current + 1) * pageSize);
+      label.textContent = start + "–" + end + " of " + total;
+      const next = document.createElement("button");
+      next.type = "button";
+      next.textContent = "Next";
+      next.disabled = current >= pages - 1 || total === 0;
+      next.addEventListener("click", () => onPage(current + 1));
+      bar.append(previous, label, next);
+    }
+    async function loadRequestPage() {
+      if (requestFrom && requestTo && new Date(requestFrom) >= new Date(requestTo)) return;
+      const params = new URLSearchParams({ page: String(requestPage), size: String(requestPageSize) });
+      if (requestQuery) params.set("q", requestQuery);
+      if (requestMethod) params.set("method", requestMethod);
+      if (requestStatus === "2xx" || requestStatus === "3xx" || requestStatus === "4xx" || requestStatus === "5xx") {
+        const base = Number(requestStatus.charAt(0)) * 100;
+        params.set("minStatus", String(base));
+        params.set("maxStatus", String(base + 99));
+      }
+      if (requestFrom) params.set("from", new Date(requestFrom).toISOString());
+      if (requestTo) params.set("to", new Date(requestTo).toISOString());
+      const body = await (await fetch(internal + "/requests?" + params)).json();
+      items = body.items || [];
+      requestTotal = body.totalCount || 0;
+      const pages = Math.max(1, Math.ceil(requestTotal / requestPageSize));
+      if (requestPage > pages - 1) {
+        requestPage = pages - 1;
+        return loadRequestPage();
+      }
+      renderRows();
+    }
+    function cell(text) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      return td;
+    }
+    async function load() {
+      const overview = await (await fetch(internal + "/overview")).json();
+      document.querySelector("#hits").textContent = overview.totalHits;
+      document.querySelector("#discovered").textContent = overview.discoveredApiCount;
+      document.querySelector("#unhit").textContent = overview.neverCalledApiCount;
+      const trafficBody = await (await fetch(internal + "/analytics/traffic")).json();
+      const points = trafficBody.points || [];
+      traffic = {
+        hits: points.map(point => point.totalHits),
+        discovered: points.map(point => point.successfulHits),
+        unhit: points.map(point => point.failedHits)
+      };
+      renderSparks();
+      const recent = await (await fetch(internal + "/requests?size=5")).json();
+      recentItems = recent.items || [];
+      document.querySelector("#updated").textContent = "Last Updated: " + stamp(recentItems.length ? recentItems[0].createdAt : new Date().toISOString());
+      if (selectedId == null && recentItems.length) selectedId = recentItems[0].id;
+      renderRecent();
+      if (!document.querySelector("#view-requests").hidden) await loadRequestPage();
+      if (selectedId != null && selectedId !== shownId) await show(selectedId);
+      if (selectedId == null) { current = null; renderDetail(); }
+      const apis = await (await fetch(internal + "/apis?size=100")).json();
+      allApis = apis.items || [];
+      renderUnhit();
+      if (!document.querySelector("#view-endpoints").hidden) await loadEndpointStats();
+      renderEndpoints();
+    }
+    document.querySelectorAll(".nav button").forEach(button => {
+      button.addEventListener("click", () => showView(button.dataset.view));
+    });
+    const sidebarToggle = document.querySelector("#sidebar-toggle");
+    function setSidebar(collapsed) {
+      document.body.classList.toggle("sidebar-collapsed", collapsed);
+      sidebarToggle.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    }
+    try { setSidebar(localStorage.getItem("api-metric-sidebar") === "collapsed"); } catch (error) {}
+    sidebarToggle.addEventListener("click", () => {
+      const collapsed = !document.body.classList.contains("sidebar-collapsed");
+      setSidebar(collapsed);
+      try { localStorage.setItem("api-metric-sidebar", collapsed ? "collapsed" : "open"); } catch (error) {}
+    });
+    document.querySelector("#view-all-requests").addEventListener("click", () => showView("requests"));
+    document.querySelector("#view-all-unused").addEventListener("click", () => {
+      endpointFilter = "never";
+      endpointPage = 0;
+      showView("endpoints");
+    });
+    let requestSearchTimer = null;
+    function reloadRequests() {
+      requestPage = 0;
+      clearTimeout(requestSearchTimer);
+      requestSearchTimer = setTimeout(() => loadRequestPage().catch(showError), 250);
+    }
+    document.querySelector("#request-search").addEventListener("input", event => {
+      requestQuery = event.target.value.trim();
+      reloadRequests();
+    });
+    document.querySelector("#request-method").addEventListener("change", event => {
+      requestMethod = event.target.value;
+      reloadRequests();
+    });
+    document.querySelector("#request-status").addEventListener("change", event => {
+      requestStatus = event.target.value;
+      reloadRequests();
+    });
+    document.querySelector("#request-from").addEventListener("change", event => {
+      requestFrom = event.target.value;
+      reloadRequests();
+    });
+    document.querySelector("#request-to").addEventListener("change", event => {
+      requestTo = event.target.value;
+      reloadRequests();
+    });
+    document.querySelector("#request-clear").addEventListener("click", () => {
+      requestQuery = "";
+      requestMethod = "";
+      requestStatus = "";
+      requestFrom = "";
+      requestTo = "";
+      document.querySelector("#request-search").value = "";
+      document.querySelector("#request-method").value = "";
+      document.querySelector("#request-status").value = "";
+      document.querySelector("#request-from").value = "";
+      document.querySelector("#request-to").value = "";
+      reloadRequests();
+    });
+    document.querySelector("#endpoint-search").addEventListener("input", () => { endpointPage = 0; renderEndpoints(); });
+    document.querySelector("#endpoint-export").addEventListener("click", exportEndpoints);
+    document.querySelector("#ranges").addEventListener("click", event => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      endpointRange = button.dataset.range;
+      document.querySelectorAll("#ranges button").forEach(item => item.classList.toggle("active", item === button));
+      document.querySelector("#custom-range").hidden = endpointRange !== "custom";
+      if (endpointRange !== "custom") loadEndpointStats().then(renderEndpoints).catch(showError);
+    });
+    document.querySelector("#range-apply").addEventListener("click", () => {
+      customFrom = document.querySelector("#range-from").value;
+      customTo = document.querySelector("#range-to").value;
+      if (!customFrom || !customTo || new Date(customFrom) >= new Date(customTo)) return;
+      loadEndpointStats().then(renderEndpoints).catch(showError);
+    });
+    document.querySelector("#refresh").addEventListener("click", () => load().catch(showError));
+    document.querySelector("#refresh-top").addEventListener("click", () => load().catch(showError));
+    setInterval(() => load().catch(() => {}), 5000);
+    load().catch(showError);
+    function showError(error) {
+      document.querySelector("#detail").textContent = error.message;
+    }
+  </script>
+</body>
+</html>
