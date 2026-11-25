@@ -39,6 +39,12 @@ class ApiMetricProperties {
                 "API Metric minimum-idle cannot be greater than maximum-pool-size.",
             )
         }
+        if (security.hasPartialCredentials()) {
+            throw IllegalStateException(
+                "API Metric dashboard login needs both api-metric.security.username and" +
+                    " api-metric.security.password.",
+            )
+        }
     }
 
     private fun isBlank(value: String?): Boolean = value == null || value.isBlank()
@@ -84,6 +90,20 @@ class ApiMetricProperties {
     class Security {
         var enabled: Boolean = true
         var allowUnauthenticated: Boolean = false
+        var username: String? = null
+        var password: String? = null
+
+        fun loginConfigured(): Boolean = !username.isNullOrBlank() && !password.isNullOrBlank()
+
+        fun requiresLogin(): Boolean = enabled && !allowUnauthenticated && loginConfigured()
+
+        fun hidesWhenUnauthenticated(): Boolean = enabled && !allowUnauthenticated && !loginConfigured()
+
+        fun hasPartialCredentials(): Boolean {
+            val usernameSet = !username.isNullOrBlank()
+            val passwordSet = !password.isNullOrBlank()
+            return usernameSet != passwordSet
+        }
     }
 
     class Analytics {

@@ -29,7 +29,9 @@ api-metric:
       - /actuator/**
   security:
     enabled: true
-    allow-unauthenticated: true
+    allow-unauthenticated: false
+    username: admin
+    password: admin
   analytics:
     unused-api-threshold-days: 30
   retention:

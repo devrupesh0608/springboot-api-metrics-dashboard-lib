@@ -188,7 +188,7 @@ class ApiMetricInternalController(
     private fun databaseTarget(): String = MysqlMonitoringDatabase.safeTarget(properties.storage.mysql.url)
 
     private fun requireAccess() {
-        if (properties.security.enabled && !properties.security.allowUnauthenticated) {
+        if (properties.security.hidesWhenUnauthenticated()) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND)
         }
     }

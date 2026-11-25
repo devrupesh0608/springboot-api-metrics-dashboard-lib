@@ -92,6 +92,8 @@ api-metric:
   security:
     enabled: true
     allow-unauthenticated: false
+    username: admin
+    password: ${API_METRIC_DASHBOARD_PASSWORD}
   analytics:
     unused-api-threshold-days: 30
   retention:
@@ -100,7 +102,9 @@ api-metric:
 
 Set `API_METRIC_DB_PASSWORD` in the environment. The password property must be present. An empty password is valid for a local database that has no password. A missing password stops startup. The library does not fall back to memory.
 
-`security.allow-unauthenticated: true` leaves the dashboard and the internal JSON API open. Use that only on a machine that is not reachable from outside. For any shared environment, leave it `false` until you put the dashboard behind your own login. The library does not register a Spring Security filter chain.
+`security.username` and `security.password` turn on the browser username and password dialog for the dashboard and the internal JSON API. Keep `allow-unauthenticated` at `false` when you set them. The password can come from an environment variable. Business APIs are not asked for this password. The library does not register a Spring Security filter chain.
+
+`security.allow-unauthenticated: true` leaves the dashboard and the internal JSON API open. Use that only on a machine that is not reachable from outside. If the username or password is missing and `allow-unauthenticated` is `false`, those paths stay hidden. Setting only one of the two login values stops startup.
 
 ## 4. Start the application
 
@@ -132,7 +136,7 @@ An API is identified by its HTTP method and route template, for example `GET /or
 Call one of your endpoints, then request the inventory:
 
 ```bash
-curl http://localhost:8080/api-metric/internal/apis
+curl -u admin:$API_METRIC_DASHBOARD_PASSWORD http://localhost:8080/api-metric/internal/apis
 ```
 
 You should see the route with `totalHits` greater than zero after the background writer flushes, which is normally within about a second. Recent calls are at:
@@ -142,7 +146,7 @@ GET /api-metric/internal/requests?size=20
 GET /api-metric/internal/overview
 ```
 
-These internal paths are hidden when `security.allow-unauthenticated` is `false`.
+Use the same username and password on those calls. When `allow-unauthenticated` is `false` and no login is configured, these paths stay hidden.
 
 ## What is stored
 
@@ -160,7 +164,7 @@ The sample is a small MVC application with item, order, and versioned product AP
 ./gradlew :api-metric-sample-application:bootRun
 ```
 
-Its configuration is `api-metric-sample-application/src/main/resources/application.yml`. On this workspace that file uses database `api-metrics` on `localhost:3306` and the local root account. The dashboard is:
+Its configuration is `api-metric-sample-application/src/main/resources/application.yml`. On this workspace that file uses database `api-metrics` on `localhost:3306` and the local root account. The sample dashboard login is username `admin` and password `admin`. That password is only for this local sample. The dashboard is:
 
 ```text
 http://localhost:8088/api-metric-dashboard

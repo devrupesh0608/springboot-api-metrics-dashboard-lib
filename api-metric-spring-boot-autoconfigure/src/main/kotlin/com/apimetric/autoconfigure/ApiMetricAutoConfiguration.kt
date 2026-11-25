@@ -5,6 +5,7 @@ import com.apimetric.autoconfigure.capture.ApiMetricDiscovery
 import com.apimetric.autoconfigure.capture.ApiMetricEventQueue
 import com.apimetric.autoconfigure.capture.ApiMetricRouteInterceptor
 import com.apimetric.autoconfigure.capture.PayloadSanitizer
+import com.apimetric.autoconfigure.web.ApiMetricBasicAuthFilter
 import com.apimetric.autoconfigure.web.ApiMetricDashboardController
 import com.apimetric.autoconfigure.web.ApiMetricInternalController
 import com.apimetric.core.service.ApiMetricService
@@ -101,6 +102,21 @@ open class ApiMetricAutoConfiguration {
         registration.setFilter(ApiMetricCaptureFilter(properties, routes, queue, sanitizer))
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 20)
         registration.addUrlPatterns("/*")
+        registration.setDispatcherTypes(DispatcherType.REQUEST)
+        return registration
+    }
+
+    @Bean
+    open fun apiMetricBasicAuthFilter(properties: ApiMetricProperties): FilterRegistrationBean<ApiMetricBasicAuthFilter> {
+        val registration = FilterRegistrationBean<ApiMetricBasicAuthFilter>()
+        registration.setFilter(ApiMetricBasicAuthFilter(properties))
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10)
+        val patterns = ApiMetricBasicAuthFilter.urlPatterns(properties.dashboard.path, properties.internalPath)
+        if (patterns.isEmpty()) {
+            registration.isEnabled = false
+        } else {
+            registration.addUrlPatterns(*patterns.toTypedArray())
+        }
         registration.setDispatcherTypes(DispatcherType.REQUEST)
         return registration
     }

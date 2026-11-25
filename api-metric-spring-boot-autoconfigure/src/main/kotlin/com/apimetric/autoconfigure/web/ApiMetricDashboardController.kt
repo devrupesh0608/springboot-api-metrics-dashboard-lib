@@ -21,7 +21,7 @@ class ApiMetricDashboardController(
         if (!properties.dashboard.enabled) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND)
         }
-        if (properties.security.enabled && !properties.security.allowUnauthenticated) {
+        if (properties.security.hidesWhenUnauthenticated()) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND)
         }
         return ResponseEntity.ok(html(properties.internalPath))
